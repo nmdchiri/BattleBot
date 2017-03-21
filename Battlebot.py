@@ -5,12 +5,16 @@ import os
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler, Filters
+from telegram import InlineQueryResultArticle, InputTextMessageContent
+from telegram.ext import InlineQueryHandler
+
 
 updater = Updater(token='183271930:AAGYn-3WiGIQU50i9uH99hRhOQQBQMfH9Wc')
 dispatcher = updater.dispatcher
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
+# TODO: JESUS CHRIST THIS CODE IS A MESS, REORGANISE EVERYTHING
 
 # ================================ Model dictionaries
 
@@ -85,7 +89,7 @@ def checktypeadv(att_type, def_type):
 
 def modifiercalc(STAB, typeadv, critical_stage, other_bonus):
     # STAB = check_stab()  # TODO: ADD THIS and remove STAB from required arguments
-    # typeadv = checktypeadv  # TODO: ditto ^
+    # typeadv = checktypeadv()  # TODO: ditto ^
     if critical_stage == 0:
         critical_rate = 16
     elif critical_stage == 1:
@@ -106,14 +110,6 @@ def damage(level, attack, defense, baseatk, modifier):
     return (((2 * level + 10) / 250.0) * (attack / defense) * baseatk + 2) * modifier  # TODO: round down
 
 
-"""
-#how to make a file
-test_file = open("testfile.txt", "w+")
-
-test_file.write("Testing if this works")
-test_file.close()
-"""
-
 
 # ================================ Handlers
 
@@ -127,13 +123,27 @@ def set_username(bot, update, args):
     username = ' '.join(args)
     bot.sendMessage(chat_id=update.message.chat_id, text='Username set to "' + username + '"!')
     user_id = update.message.from_user.id
-    file_path = "Users/" + str(user_id)
-    if os.path.isfile(file_path):
-        player_dict = json.load(file_path)
-        player_dict["status"]["username"] = username
-        json.dump(player_dict, file_path)
+    user_path = "Users/" + str(user_id)
+    if os.path.isfile(user_path):
+        with open(user_path, 'r+'):
+            player_dict = json.load(user_path)
+            player_dict["status"]["username"] = username
+            json.dump(player_dict, user_path)
     else:
-        create_profile(user_id, username)  # TODO: check if already has profile
+        create_profile(user_id, username)
+
+
+def host_battle(bot, update):
+    user_id = str(update.message.from_user.id)
+    battle_path = "Battles/" + str(user_id) + '.json'
+    battle_dict = {
+        "host": user_id,
+        "guest": ""
+    }
+    with open(battle_path,'w+') as outfile:  # TODO: Check if user is in battle
+        json.dump(battle_dict, outfile)
+    bot.sendMessage(chat_id=update.message.chat_id, text='Done! Tell your friend to send "/join '
+                                                         + user_id + '" to join the battle!')
 
 
 start_handler = CommandHandler('start', start)
@@ -141,6 +151,9 @@ dispatcher.add_handler(start_handler)
 
 username_handler = CommandHandler('username', set_username, pass_args=True)
 dispatcher.add_handler(username_handler)
+
+host_battle_handler = CommandHandler('battle', host_battle)
+dispatcher.add_handler(host_battle_handler)
 
 
 def echo(bot, update):
@@ -151,3 +164,22 @@ echo_handler = MessageHandler(Filters.text, echo)
 dispatcher.add_handler(echo_handler)
 
 updater.start_polling()
+
+
+def inline_caps(bot, update):
+    query = update.inline_query.query
+    if not query:
+        return
+    results = list()
+    results.append(
+        InlineQueryResultArticle(
+            id=query.upper(),
+            title='Caps',
+            input_message_content=InputTextMessageContent(query.upper()),
+            description='This is a description'
+        )
+    )
+    bot.answerInlineQuery(update.inline_query.id, results)
+
+inline_caps_handler = InlineQueryHandler(inline_caps)
+dispatcher.add_handler(inline_caps_handler)
