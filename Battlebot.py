@@ -97,10 +97,10 @@ def set_username(bot, update, args):  # Callback for /username
 # ================================ Battle hosting and joining
 
 def is_in_battle(user_id: str):  # Checks if user is in active battle
-    user_path = "Users/" + user_id + ".json"
+    user_path = "Users/" + str(user_id) + ".json"
     with open(user_path, 'r') as infile:
         user_dict = json.load(infile)
-    if not user_dict["in_battle"]:
+    if not user_dict["status"]["in_battle"]:
         return False
     else:
         return True
