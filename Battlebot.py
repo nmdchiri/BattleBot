@@ -64,6 +64,7 @@ def create_profile(user_id: str, username=""):  # Also may work as a reset
             "losses": 0,
             "money": 5000,
             "in_battle": "",
+            "battle_against": "",
         },
         "inventory": [],
         "party": []
@@ -100,28 +101,17 @@ def is_in_battle(user_id: str):  # Checks if user is in active battle
     user_path = "Users/" + str(user_id) + ".json"
     with open(user_path, 'r') as infile:
         user_dict = json.load(infile)
-    if not user_dict["status"]["in_battle"]:
-        return False
-    else:
+    if user_dict["status"]["in_battle"] and user_dict["status"]["battle_against"]:  # Only if active battle
         return True
-
-    # battle_path = "Battles/" + host_id + ".json"  # TODO: Delete this code when sure it isn't needed
-    # if os.path.isfile(battle_path):  # TODO: Check if two files agree, else delete guest
-    #     with open(battle_path, 'r') as infile:
-    #         battle_dict = json.load(infile)
-    #         if battle_dict["guest"]:  # If guest is not null, then user must be battling
-    #             return True
-    #         else:  # If guest is still empty, user must be waiting for friend to join
-    #             return False
-    # else:  # If file does not exist, then user has not hosted or joined battle
-    #     return False
+    else:  # Both being waiting for your friend to join or not hosting any battle will return False
+        return False
 
 
 def host_battle(bot, update):  # Callback for /battle and host_battle_handler
     host_id = str(update.message.from_user.id)
     battle_path = "Battles/" + host_id + ".json"
     host_path = "Users/" + host_id + ".json"
-    if not has_profile(user_id=host_id):
+    if not has_profile(user_id=host_id):  # Makes sure user has profile
         create_profile(user_id=host_id, username=update.message.from_user.username)
     battle_dict = {
         "host": host_id,
@@ -132,44 +122,60 @@ def host_battle(bot, update):  # Callback for /battle and host_battle_handler
     else:  # If user is NOT in active battle
         with open(battle_path, 'w+') as outfile:
             json.dump(battle_dict, outfile)
-        with open(host_path, 'r+') as outfile:
-            user_dict = json.load(outfile)
-            user_dict["in_battle"] = host_id
+        with open(host_path, 'r+') as infile:
+            user_dict = json.load(infile)
+            user_dict["status"]["in_battle"] = host_id
+        with open(host_path, 'w+') as outfile:
+            json.dump(user_dict, outfile)
         bot.sendMessage(chat_id=update.message.chat_id, text='Done! Tell your friend to send "/join '
                                                              + host_id + '" to join the battle!')
 
 
 def join_battle(bot, update, args: list):  # Callback for /join and join_battle_handler
     guest_id = str(update.message.from_user.id)
-    battle_path = "Battles/" + " ".join(args) + ".json"
-    host_path = "Users/" + " ".join(args) + ".json"
-    if not has_profile(user_id=guest_id):
+    guest_path = "Users/" + guest_id + ".json"
+    host_id = " ".join(args)
+    host_path = "Users/" + host_id + ".json"
+    battle_path = "Battles/" + host_id + ".json"
+    if not has_profile(user_id=guest_id):  # Makes sure user has user file
         create_profile(user_id=guest_id, username=update.message.from_user.username)
-    guest_battle_path = "Battles/" + str(guest_id) + ".json"
     if not args:  # User did not provide host_id as args
         bot.sendMessage(chat_id=update.message.chat_id, text='You must add the number after "/join "!')
-    elif is_in_battle(guest_battle_path):  # User provided host_id but user is in battle
-        bot.sendMessage(chat_id=update.message.chat_id, text='You are already in battle!')
-    elif is_in_battle(host_path):  # User provided host_id but host is in battle
-        bot.sendMessage(chat_id=update.message.chat_id, text='That user is already in battle!')
-    elif not os.path.isfile(battle_path):  # User provided wrong host_id
+    elif not os.path.isfile(battle_path):  # User provided wrong or non-existent host_id
         bot.sendMessage(chat_id=update.message.chat_id, text='That user is not ready to battle!')
-    else:  # User provided host_id and is not in battle
-        host_id = " ".join(args)
-        host_battle_path = "Battles/" + str(host_id) + ".json"
+    elif host_id == guest_id:  # User provided their own user_id
+        bot.sendMessage(chat_id=update.message.chat_id, text='You cannot battle yourself!')
+    elif is_in_battle(user_id=guest_id):  # User provided host_id but user is in battle
+        bot.sendMessage(chat_id=update.message.chat_id, text='You are already in battle!')
+    elif is_in_battle(user_id=host_id):  # User provided host_id but host is in battle
+        bot.sendMessage(chat_id=update.message.chat_id, text='That user is already in battle!')
+    else:  # User provided host_id and is not in active battle
         battle_dict = {
             "host": host_id,
             "guest": guest_id,
             "host_active_pokemon": "",
-            "guest_active_pokemon": ""
+            "guest_active_pokemon": "",
+            "turn": 0
         }
-        with open(guest_battle_path, "w+") as outfile:
+        with open(battle_path, "w+") as outfile:  # We overwrite the battle file with the new data
             json.dump(battle_dict, outfile)
-        with open(host_battle_path, "w+") as outfile:
-            json.dump(battle_dict, outfile)
+        with open(host_path, "r") as infile:  # We open the host's user file
+            host_dict = json.load(infile)
+        host_dict["status"]["battle_against"] = guest_id  # We set the guest_id as the host's foe
+        with open(host_path, "w") as outfile:  # We overwrite the host's user file
+            json.dump(host_dict, outfile)
+        with open(guest_path, "r") as infile:  # We now open the guest's user file
+            guest_dict = json.load(infile)
+        guest_dict["status"]["battle_against"] = host_id  # We set the host_id as the guest's foe
+        with open(guest_path, "w") as outfile:  # We overwrite the guest's user file
+            json.dump(guest_dict, outfile)
         bot.sendMessage(chat_id=update.message.chat_id, text='Successfully joined the battle! Send out your Pokémon by '
                                                              'sending "/go" followed by a space and the name of the '
                                                              'Pokémon you want to choose!')
+
+
+def cancel_battle(user_id):  # TODO: Should add 1 loss if aborts when already in battle, nothing if waiting
+    pass
 
 
 # ================================ Battle processing
@@ -186,34 +192,50 @@ def user_is_host(user_id):
 
 
 def pokemon_out(user_id):
-    battle_path = "Battles/" + user_id + ".json"
+    user_path = "Users/" + user_id + ".json"
+    with open(user_path, "r") as infile:
+        user_dict = json.load(infile)
+    battle_path = "Battles/" + user_dict["status"]["in_battle"] + ".json"
     with open(battle_path, "r") as infile:
-        user_battle_dict = json.load(infile)
-    host_battle_path = "Battles/" + user_battle_dict["host"] + ".json"  # This only matters if user is guest
-    with open(host_battle_path, "r") as infile:
-        host_battle_dict = json.load(infile)  # Now we can be sure this is the host battle file
-    if user_is_host(user_id) and host_battle_dict["host_active_pokemon"]:
+        battle_dict = json.load(infile)
+    if user_is_host(user_id) and battle_dict["host_active_pokemon"]:
         return True
-    elif (not user_is_host(user_id)) and host_battle_dict["guest_active_pokemon"]:
+    elif (not user_is_host(user_id)) and battle_dict["guest_active_pokemon"]:
         return True
     else:
         return False
 
 
-# def end_battle(user_id):
-#     pass  # TODO: Delete files and halve money of loser after finishing
+def end_battle(winner_id, battle_path):  # TODO: Delete files and halve money of loser after finishing
+    winner_path = "Users/" + str(winner_id) + ".json"
+    with open(winner_path, 'r+') as infile:
+        winner_dict = json.load(infile)
+    loser_id = winner_dict["status"]["battle_against"]
+    loser_path = "Users/" + str(loser_id) + ".json"
+    os.remove(battle_path)
+    winner_dict["status"]["in_battle"] = ""
+    winner_dict["status"]["battle_against"] = ""
+    winner_dict["status"]["wins"] = +1
+    with open(winner_path, 'w+') as outfile:
+        json.dump(winner_dict, outfile)
+    with open(loser_path, 'r+') as infile:
+        loser_dict = json.load(infile)
+    loser_dict["status"]["in_battle"] = ""
+    loser_dict["status"]["battle_against"] = ""
+    loser_dict["status"]["losses"] = +1
 
 
 def send_pokemon(bot, update, args: list):  # Callback for /go and send_pokemon_handler
     pokemon = " ".join(args)
     user_id = str(update.message.from_user.id)
-    battle_path = "Battles/" + user_id + ".json"
-    if not is_in_battle(battle_path):
+    if not has_profile(user_id=user_id):  # Makes sure user has user file
+        create_profile(user_id=user_id, username=update.message.from_user.username)
+    if not is_in_battle(user_id):
         bot.sendMessage(chat_id=update.message.chat_id, text='You are not in battle!')
     elif not pokemon:  # User sent no arguments
         bot.sendMessage(chat_id=update.message.chat_id, text='You have to write a name after "/go "!'
                                                              '(e.g.: "/go Bulbasaur)')
-    elif pokemon_out(user_id):  # "is_in_battle" being True also made sure user has a battle file
+    elif pokemon_out(user_id):  # "is_in_battle" being True also made sure user has a "battle_against"
         bot.sendMessage(chat_id=update.message.chat_id, text='You already have a Pokémon out!')
     else:  # User is in battle and has NO Pokémon out
         bot.sendMessage(chat_id=update.message.chat_id, text='Go, {}!').format(pokemon)
@@ -268,8 +290,11 @@ dispatcher.add_handler(username_handler)
 host_battle_handler = CommandHandler('battle', host_battle)
 dispatcher.add_handler(host_battle_handler)
 
-join_battle_handler = CommandHandler('battle', join_battle)
+join_battle_handler = CommandHandler('join', join_battle, pass_args=True)
 dispatcher.add_handler(join_battle_handler)
+
+send_pokemon_handler = CommandHandler('go', send_pokemon, pass_args=True)
+dispatcher.add_handler(send_pokemon_handler)
 
 
 def echo(bot, update):
