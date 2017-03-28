@@ -17,32 +17,43 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # TODO: JESUS CHRIST THIS CODE IS A MESS, REORGANISE EVERYTHING
 
-# ================================ Model dictionaries
+# ================================ Battle and profile classes
 
-"""
-pokemon_dict = {
-    "id": 1,
-    "name": "bulbasaur",
-    "held_items": {},
-    "abilities": "",
-    "moves": []
-    "types": [
-        {
-            "slot": 2,
-            "type": {
-                "url": "https://pokeapi.co/api/v2/type/4/",
-                "name": "poison"
-                }
-            },
-        {
-            "slot": 1,
-            "type": {
-                "url": "https://pokeapi.co/api/v2/type/12/",
-                "name": "grass"
-                }
-            }
-        ]
-"""
+
+class Pokemon(object):
+    def __init__(self, id):
+        self.id = id
+    nickname = ""
+    name = ""
+    held_items = ""
+    abilities = ""
+    moves = []
+    types = []
+
+
+class Profile(object):
+    def __init__(self, user_id, username, money):
+        self.user_id = user_id
+        self.username = username
+        self.money = money
+
+    def add_money(self, to_add):
+        self.money += to_add
+    party = []
+    inventory = []
+    wins = 0
+    losses = 0
+    in_battle = ""
+    battle_against = ""
+
+
+class Battle(object):
+    def __init__(self, host):
+        self.host = host
+    guest = ""
+    host_active_pokemon = ""
+    guest_active_pokemon = ""
+    turn = 0
 
 
 # ================================ Profile handling
@@ -70,23 +81,32 @@ def has_profile(user_id):
         return False
 
 
-def create_profile(user_id: str, username=""):  # Also may work as a reset
-    user_path = "Users/" + str(user_id) + ".json"
-    player_dict = {
-        "user_id": user_id,
-        "status": {
-            "username": username,
-            "wins": 0,
-            "losses": 0,
-            "money": 5000,
-            "in_battle": "",
-            "battle_against": "",
-        },
-        "inventory": [],
-        "party": []
-    }
+def create_profile(user_id: str, username=""):
+    user_path = "Users/{}.json".format(str(user_id))
+    profile = Profile(user_id=user_id, username=username, money=5000)
+    pickled_profile = jsonpickle.encode(profile)
     with open(user_path, "w") as outfile:  # 'w' to create file if it doesn't exist
-        json.dump(player_dict, outfile)
+        outfile.write(pickled_profile)
+
+
+
+# def create_profile(user_id: str, username=""):  # Also may work as a reset
+#     user_path = "Users/" + str(user_id) + ".json"
+#     player_dict = {
+#         "user_id": user_id,
+#         "status": {
+#             "username": username,
+#             "wins": 0,
+#             "losses": 0,
+#             "money": 5000,
+#             "in_battle": "",
+#             "battle_against": "",
+#         },
+#         "inventory": [],
+#         "party": []
+#     }
+#     with open(user_path, "w") as outfile:  # 'w' to create file if it doesn't exist
+#         json.dump(player_dict, outfile)
 
 
 def start(bot, update):  # Callback for /start
