@@ -46,6 +46,20 @@ pokemon_dict = {
 # ================================ Profile handling
 
 
+def get_profile_dict(user_id):
+    user_path = "Users/" + user_id + ".json"
+    with open(user_path, "r") as infile:
+        user_dict = json.load(infile)
+    return user_dict
+
+
+def get_battle_dict(host_id):
+    battle_path = "Battle/" + host_id + ".json"
+    with open(battle_path, "r") as infile:
+        battle_dict = json.load(infile)
+    return battle_dict
+
+
 def has_profile(user_id):
     user_path = "Users/" + user_id + ".json"
     if os.path.isfile(user_path):
@@ -166,6 +180,7 @@ def join_battle(bot, update, args: list):  # Callback for /join and join_battle_
             json.dump(host_dict, outfile)
         with open(guest_path, "r") as infile:  # We now open the guest's user file
             guest_dict = json.load(infile)
+        guest_dict["status"]["in_battle"] = host_id
         guest_dict["status"]["battle_against"] = host_id  # We set the host_id as the guest's foe
         with open(guest_path, "w") as outfile:  # We overwrite the guest's user file
             json.dump(guest_dict, outfile)
@@ -182,7 +197,10 @@ def cancel_battle(user_id):  # TODO: Should add 1 loss if aborts when already in
 
 
 def user_is_host(user_id):
-    battle_path = "Battles/" + user_id + ".json"
+    user_path = "Users/" + user_id + ".json"
+    with open(user_path, "r") as infile:
+        user_dict = json.load(infile)
+    battle_path = "Battles/" + user_dict["status"]["in_battle"] + ".json"
     with open(battle_path, "r") as infile:
         user_battle_dict = json.load(infile)
     if user_battle_dict["host"] == user_id:
@@ -198,7 +216,7 @@ def pokemon_out(user_id):
     battle_path = "Battles/" + user_dict["status"]["in_battle"] + ".json"
     with open(battle_path, "r") as infile:
         battle_dict = json.load(infile)
-    if user_is_host(user_id) and battle_dict["host_active_pokemon"]:
+    if user_is_host(user_id=user_id) and battle_dict["host_active_pokemon"]:
         return True
     elif (not user_is_host(user_id)) and battle_dict["guest_active_pokemon"]:
         return True
@@ -228,6 +246,9 @@ def end_battle(winner_id, battle_path):  # TODO: Delete files and halve money of
 def send_pokemon(bot, update, args: list):  # Callback for /go and send_pokemon_handler
     pokemon = " ".join(args)
     user_id = str(update.message.from_user.id)
+    user_dict = get_profile_dict(user_id = user_id)
+    host_id = user_dict["status"]["in_battle"]
+    battle_dict = get_battle_dict(host_id=host_id)
     if not has_profile(user_id=user_id):  # Makes sure user has user file
         create_profile(user_id=user_id, username=update.message.from_user.username)
     if not is_in_battle(user_id):
@@ -238,7 +259,11 @@ def send_pokemon(bot, update, args: list):  # Callback for /go and send_pokemon_
     elif pokemon_out(user_id):  # "is_in_battle" being True also made sure user has a "battle_against"
         bot.sendMessage(chat_id=update.message.chat_id, text='You already have a Pokémon out!')
     else:  # User is in battle and has NO Pokémon out
-        bot.sendMessage(chat_id=update.message.chat_id, text='Go, {}!').format(pokemon)
+        if user_is_host(user_id = user_id):
+            battle_dict["host_active_pokemon"] = pokemon
+        else:
+            battle_dict["guest_active_pokemon"] = pokemon
+        bot.sendMessage(chat_id=update.message.chat_id, text='{} sent out {}!'.format(user_dict["status"]["username"],pokemon))
 
 
 # ================================ Damage calculators
