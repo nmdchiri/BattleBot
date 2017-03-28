@@ -1,7 +1,9 @@
 import random
 import logging
-import json
 import os
+import json
+import jsonpickle
+
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler, Filters
@@ -246,7 +248,7 @@ def end_battle(winner_id, battle_path):  # TODO: Delete files and halve money of
 def send_pokemon(bot, update, args: list):  # Callback for /go and send_pokemon_handler
     pokemon = " ".join(args)
     user_id = str(update.message.from_user.id)
-    user_dict = get_profile_dict(user_id = user_id)
+    user_dict = get_profile_dict(user_id=user_id)
     host_id = user_dict["status"]["in_battle"]
     battle_dict = get_battle_dict(host_id=host_id)
     if not has_profile(user_id=user_id):  # Makes sure user has user file
@@ -259,11 +261,12 @@ def send_pokemon(bot, update, args: list):  # Callback for /go and send_pokemon_
     elif pokemon_out(user_id):  # "is_in_battle" being True also made sure user has a "battle_against"
         bot.sendMessage(chat_id=update.message.chat_id, text='You already have a Pokémon out!')
     else:  # User is in battle and has NO Pokémon out
-        if user_is_host(user_id = user_id):
+        if user_is_host(user_id=user_id):
             battle_dict["host_active_pokemon"] = pokemon
         else:
             battle_dict["guest_active_pokemon"] = pokemon
-        bot.sendMessage(chat_id=update.message.chat_id, text='{} sent out {}!'.format(user_dict["status"]["username"],pokemon))
+        bot.sendMessage(chat_id=update.message.chat_id, text='{} sent out {}!'.format(user_dict["status"]["username"],
+                                                                                      pokemon))
 
 
 # ================================ Damage calculators
