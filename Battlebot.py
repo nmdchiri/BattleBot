@@ -37,23 +37,46 @@ class Profile(object):
         self.username = username
         self.money = money
 
-    def add_money(self, to_add):
-        self.money += to_add
     party = []
     inventory = []
     wins = 0
     losses = 0
     in_battle = ""
     battle_against = ""
+    active_pokemon = ""
+    command = ""  # TODO: Should be able to take an object "Move" or similar
 
 
 class Battle(object):
-    def __init__(self, host):
+    def __init__(self, host, guest):
         self.host = host
-    guest = ""
-    host_active_pokemon = ""
-    guest_active_pokemon = ""
+        self.guest = guest
     turn = 0
+    
+    def do_turn(self):  # TODO: Add speed checking to see who goes first, etc
+        self.turn += 1
+        
+    def take_command(self, host_command="", guest_command=""):  # TODO: Add some kind of confirmation
+        if host_command:
+            self.host.command = host_command
+        if guest_command:
+            self.guest.command = guest_command
+        if self.host.command and self.guest.command:
+            do_turn()
+
+    def end_battle(self, winner_id, loser_id):
+        if winner_id == host.user_id:
+            winner = host
+            loser = guest
+        else:
+            winner = guest
+            loser = host
+        winner.money += loser.money - loser.money // 2
+        loser.money = loser.money // 2
+
+    def surrender(self, user_id):
+        if self.host.user_id == user_id:
+            
 
 
 # ================================ Profile handling
@@ -74,39 +97,19 @@ def get_battle_dict(host_id):
 
 
 def has_profile(user_id):
-    user_path = "Users/" + user_id + ".json"
+    user_path = "Users/{}.json".format(str(user_id))
     if os.path.isfile(user_path):
         return True
     else:
         return False
 
 
-def create_profile(user_id: str, username=""):
+def create_profile(user_id: str, username=""):  # Also may work as a reset
     user_path = "Users/{}.json".format(str(user_id))
     profile = Profile(user_id=user_id, username=username, money=5000)
     pickled_profile = jsonpickle.encode(profile)
     with open(user_path, "w") as outfile:  # 'w' to create file if it doesn't exist
         outfile.write(pickled_profile)
-
-
-
-# def create_profile(user_id: str, username=""):  # Also may work as a reset
-#     user_path = "Users/" + str(user_id) + ".json"
-#     player_dict = {
-#         "user_id": user_id,
-#         "status": {
-#             "username": username,
-#             "wins": 0,
-#             "losses": 0,
-#             "money": 5000,
-#             "in_battle": "",
-#             "battle_against": "",
-#         },
-#         "inventory": [],
-#         "party": []
-#     }
-#     with open(user_path, "w") as outfile:  # 'w' to create file if it doesn't exist
-#         json.dump(player_dict, outfile)
 
 
 def start(bot, update):  # Callback for /start
@@ -122,10 +125,11 @@ def set_username(bot, update, args):  # Callback for /username
     user_path = "Users/" + user_id + ".json"
     custom_username = ' '.join(args)  # Makes argument list into a single string
     if has_profile(user_id=user_id):  # Checks if user has profile file already
-        with open(user_path, 'r+') as outfile:  # If so, opens file and only edits username
-            player_dict = json.load(outfile)
-            player_dict["status"]["username"] = custom_username
-            json.dump(player_dict, outfile)  # Is this necessary?
+        with open(user_path, 'r+') as infile:  # If so, opens file and only edits username
+            profile = jsonpickle.decode(infile.read())
+        profile.username = custom_username
+        with open(user_path, 'w+') as outfile:
+            outfile.write(jsonpickle.encode(profile))
     else:
         create_profile(user_id=user_id, username=custom_username)  # Otherwise, creates profile with custom username
     bot.sendMessage(chat_id=update.message.chat_id, text='Username set to "' + custom_username + '"!')
@@ -134,10 +138,10 @@ def set_username(bot, update, args):  # Callback for /username
 # ================================ Battle hosting and joining
 
 def is_in_battle(user_id: str):  # Checks if user is in active battle
-    user_path = "Users/" + str(user_id) + ".json"
+    user_path = "Users/{}.json".format(str(user_id))
     with open(user_path, 'r') as infile:
-        user_dict = json.load(infile)
-    if user_dict["status"]["in_battle"] and user_dict["status"]["battle_against"]:  # Only if active battle
+        profile = jsonpickle.decode(infile.read())
+    if profile.battle_against:  # Only if active battle
         return True
     else:  # Both being waiting for your friend to join or not hosting any battle will return False
         return False
@@ -145,24 +149,17 @@ def is_in_battle(user_id: str):  # Checks if user is in active battle
 
 def host_battle(bot, update):  # Callback for /battle and host_battle_handler
     host_id = str(update.message.from_user.id)
-    battle_path = "Battles/" + host_id + ".json"
     host_path = "Users/" + host_id + ".json"
     if not has_profile(user_id=host_id):  # Makes sure user has profile
         create_profile(user_id=host_id, username=update.message.from_user.username)
-    battle_dict = {
-        "host": host_id,
-        "guest": ""
-    }
     if is_in_battle(user_id=host_id):  # If user is in active battle
         bot.sendMessage(chat_id=update.message.chat_id, text='You are already in battle!')
     else:  # If user is NOT in active battle
-        with open(battle_path, 'w+') as outfile:
-            json.dump(battle_dict, outfile)
         with open(host_path, 'r+') as infile:
-            user_dict = json.load(infile)
-            user_dict["status"]["in_battle"] = host_id
+            profile = jsonpickle.decode(infile.read())
+            profile.in_battle = host_id
         with open(host_path, 'w+') as outfile:
-            json.dump(user_dict, outfile)
+            outfile.write(jsonpickle.encode(profile))
         bot.sendMessage(chat_id=update.message.chat_id, text='Done! Tell your friend to send "/join '
                                                              + host_id + '" to join the battle!')
 
@@ -186,26 +183,20 @@ def join_battle(bot, update, args: list):  # Callback for /join and join_battle_
     elif is_in_battle(user_id=host_id):  # User provided host_id but host is in battle
         bot.sendMessage(chat_id=update.message.chat_id, text='That user is already in battle!')
     else:  # User provided host_id and is not in active battle
-        battle_dict = {
-            "host": host_id,
-            "guest": guest_id,
-            "host_active_pokemon": "",
-            "guest_active_pokemon": "",
-            "turn": 0
-        }
-        with open(battle_path, "w+") as outfile:  # We overwrite the battle file with the new data
-            json.dump(battle_dict, outfile)
         with open(host_path, "r") as infile:  # We open the host's user file
-            host_dict = json.load(infile)
-        host_dict["status"]["battle_against"] = guest_id  # We set the guest_id as the host's foe
+            host_profile = jsonpickle.decode(infile.read())
+        host_profile.battle_against = guest_id  # We set the guest_id as the host's foe
         with open(host_path, "w") as outfile:  # We overwrite the host's user file
-            json.dump(host_dict, outfile)
+            outfile.write(jsonpickle.encode(host_profile))
         with open(guest_path, "r") as infile:  # We now open the guest's user file
-            guest_dict = json.load(infile)
-        guest_dict["status"]["in_battle"] = host_id
-        guest_dict["status"]["battle_against"] = host_id  # We set the host_id as the guest's foe
+            guest_profile = jsonpickle.decode(infile.read())
+        guest_profile.in_battle = host_id
+        guest_profile.battle_against = host_id  # We set the host_id as the guest's foe
         with open(guest_path, "w") as outfile:  # We overwrite the guest's user file
-            json.dump(guest_dict, outfile)
+            outfile.write(jsonpickle.encode(guest_profile))
+        battle = jsonpickle.encode(Battle(host=host_profile, guest=guest_profile))
+        with open(battle_path, 'w') as outfile:
+            outfile.write(battle)
         bot.sendMessage(chat_id=update.message.chat_id, text='Successfully joined the battle! Send out your Pokémon by '
                                                              'sending "/go" followed by a space and the name of the '
                                                              'Pokémon you want to choose!')
