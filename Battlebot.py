@@ -23,6 +23,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 class Pokemon(object):
     def __init__(self, id):
         self.id = id
+    
     nickname = ""
     name = ""
     held_items = ""
@@ -36,7 +37,7 @@ class Profile(object):
         self.user_id = user_id
         self.username = username
         self.money = money
-
+    
     party = []
     inventory = []
     wins = 0
@@ -75,14 +76,43 @@ class Battle(object):
         loser.money = loser.money // 2
 
     def surrender(self, user_id):
-        if self.host.user_id == user_id:
-            
+        if self.host.user_id == user_id:  # If user who surrenders is host
+            winner_id = self.guest.user_id  # Then guest is the winner
+        else:  # If user who surrenders is not host
+            winner_id = self.host.user_id  # Then host is the winner
+        end_battle(winner_id=winner_id, loser_id=user_id)
 
 
 # ================================ Profile handling
 
 
-def get_profile_dict(user_id):
+def get_profile(user_id):
+    user_path = "Users/" + user_id + ".json"
+    with open(user_path, "r") as infile:
+        profile = jsonpickle.decode(infile.read())
+    return profile
+
+
+def get_battle(host_id):
+    battle_path = "Battles/" + host_id + ".json"
+    with open(battle_path, "r") as infile:
+        battle = jsonpickle.decode(infile.read())
+    return battle
+
+
+def save_profile(user_id, profile):  # TODO: Complete this
+    user_path = "Users/" + user_id + ".json"
+    with open(user_path, "w") as outfile:
+        outfile.write(jsonpickle.encode(profile))
+
+
+def save_battle(host_id, battle):  # TODO: Complete this
+    user_path = "Battles/" + host_id + ".json"
+    with open(host_path, "w") as outfile:
+        outfile.write(jsonpickle.encode(battle))
+
+
+def get_profile_dict(user_id):  # TODO: Delete
     user_path = "Users/" + user_id + ".json"
     with open(user_path, "r") as infile:
         user_dict = json.load(infile)
