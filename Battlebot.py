@@ -1,7 +1,10 @@
 import random
 import logging
 import os
-import json
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import jsonpickle
 
 from telegram.ext import Updater
@@ -21,8 +24,8 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 
 class Pokemon(object):
-    def __init__(self, id):
-        self.id = id
+    def __init__(self, poke_id):
+        self.id = poke_id
     
     nickname = ""
     name = ""
@@ -63,15 +66,15 @@ class Battle(object):
         if guest_command:
             self.guest.command = guest_command
         if self.host.command and self.guest.command:
-            do_turn()
+            self.do_turn()
 
-    def end_battle(self, winner_id, loser_id):
-        if winner_id == host.user_id:
-            winner = host
-            loser = guest
+    def end_battle(self, winner_id):
+        if winner_id == self.host.user_id:
+            winner = self.host
+            loser = self.guest
         else:
-            winner = guest
-            loser = host
+            winner = self.guest
+            loser = self.host
         winner.money += loser.money - loser.money // 2
         loser.money = loser.money // 2
 
@@ -80,7 +83,7 @@ class Battle(object):
             winner_id = self.guest.user_id  # Then guest is the winner
         else:  # If user who surrenders is not host
             winner_id = self.host.user_id  # Then host is the winner
-        end_battle(winner_id=winner_id, loser_id=user_id)
+        self.end_battle(winner_id=winner_id)
 
 
 # ================================ Profile handling
@@ -107,7 +110,7 @@ def save_profile(user_id, profile):  # TODO: Complete this
 
 
 def save_battle(host_id, battle):  # TODO: Complete this
-    user_path = "Battles/" + host_id + ".json"
+    host_path = "Battles/" + host_id + ".json"
     with open(host_path, "w") as outfile:
         outfile.write(jsonpickle.encode(battle))
 
