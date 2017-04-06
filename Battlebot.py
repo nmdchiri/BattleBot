@@ -96,20 +96,27 @@ class Profile(object):
 
 class Battle(object):
     def __init__(self, host_id, guest_id):
-        self.host = get_profile(host_id)  # TODO: Change this so that it can be pickled, flatten?
-        self.guest = get_profile(guest_id)
-    turn = 0
+        self.host_id = host_id  # TODO: Change this so that it can be pickled, flatten?
+        self.guest_id = guest_id
+        self.turn = 0
     
-    def do_turn(self):  # TODO: Add speed checking to see who goes first, etc
+    def do_turn(self, host, guest):  # TODO: Add speed checking to see who goes first, etc
         self.turn += 1
+        return = []
         
-    def take_command(self, host_command="", guest_command=""):  # TODO: Add some kind of confirmation
+    def take_command(self, host_command="", guest_command=""):
+        host = get_profile(user_id=host_id)
+        guest = get_profile(user_id=guest_id)
         if host_command:
-            self.host.command = host_command
+            host.command = host_command
+            save_profile(user_id=self.host_id, profile=host)
         if guest_command:
-            self.guest.command = guest_command
-        if self.host.command and self.guest.command:
-            self.do_turn()
+            guest.command = guest_command
+            save_profile(user_id=self.guest_id, profile=guest)
+        if host.command and guest.command:
+            return self.do_turn(host=host, guest=guest)
+        elif host.command and not guest.command:
+            return ["{} is ready!", "Waiting for {}!"]
 
     def end_battle(self, winner_id):
         if winner_id == self.host.user_id:
