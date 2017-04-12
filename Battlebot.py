@@ -19,8 +19,6 @@ dispatcher = updater.dispatcher
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
-# TODO: JESUS CHRIST THIS CODE IS A MESS, REORGANISE EVERYTHING
-
 
 # ================================ Profile handling
 
@@ -67,7 +65,7 @@ def has_profile(user_id):
 # ================================ Battle and profile classes
 
 
-class Pokemon(object):
+class BattlePokemon(object):
     def __init__(self, poke_id):
         self.id = poke_id
     
@@ -77,6 +75,7 @@ class Pokemon(object):
     abilities = ""
     moves = []
     types = []
+    hp = 0
 
 
 class Profile(object):
@@ -93,20 +92,42 @@ class Profile(object):
     battle_against = ""
     command = ""  # TODO: Should be able to take an object "Move" or similar
 
+    def check_usable_pokemon(self):
+        for pokemon in self.party:
+            if pokemon.hp > 0:
+                return True
+        else:
+            return False
+
 
 class Battle(object):
     def __init__(self, host_id, guest_id):
-        self.host_id = host_id  # TODO: Change this so that it can be pickled, flatten?
+        self.host_id = host_id
         self.guest_id = guest_id
         self.turn = 0
     
-    def do_turn(self, host, guest):  # TODO: Add speed checking to see who goes first, etc
+    def end_battle(self, winner: Profile, loser: Profile):
+        winner.money += loser.money - loser.money // 2
+        loser.money = loser.money // 2
+        save_profile(user_id=winner.user_id, profile=winner)
+        save_profile(user_id=loser.user_id, profile=loser)
+        delete_battle(host_id=self.host_id)
+        return "{} wins!".format(winner.username)
+
+    def do_turn(self, host: Profile, guest: Profile):  # TODO: Add speed checking to see who goes first, etc
+        messages = []
         self.turn += 1
-        return = []
+        if (not host.check_usable_pokemon()) and not guest.check_usable_pokemon():
+            pass  # TODO: Draw
+        elif not host.check_usable_pokemon():
+            messages.append(self.end_battle(winner=guest, loser=host))
+        elif not host.check_usable_pokemon():
+            messages.append(self.end_battle(winner=host, loser=guest))
+        return messages
         
     def take_command(self, host_command="", guest_command=""):
-        host = get_profile(user_id=host_id)
-        guest = get_profile(user_id=guest_id)
+        host: Profile = get_profile(user_id=self.host_id)
+        guest: Profile = get_profile(user_id=self.guest_id)
         if host_command:
             host.command = host_command
             save_profile(user_id=self.host_id, profile=host)
@@ -118,25 +139,16 @@ class Battle(object):
         elif host.command and not guest.command:
             return ["{} is ready!", "Waiting for {}!"]
 
-    def end_battle(self, winner_id):
-        if winner_id == self.host.user_id:
-            winner = self.host
-            loser = self.guest
-        else:
-            winner = self.guest
-            loser = self.host
-        winner.money += loser.money - loser.money // 2
-        loser.money = loser.money // 2
-        save_profile(user_id=winner.user_id, profile=winner)
-        save_profile(user_id=loser.user_id, profile=loser)
-        delete_battle(host_id=self.host.user_id)
-
     def surrender(self, user_id):
-        if self.host.user_id == user_id:  # If user who surrenders is host
-            winner_id = self.guest.user_id  # Then guest is the winner
+        host = get_profile(user_id=self.host_id)
+        guest = get_profile(user_id=self.guest_id)
+        if self.host_id == user_id:  # If user who surrenders is host
+            winner = guest  # Then guest is the winner
+            loser = host
         else:  # If user who surrenders is not host
-            winner_id = self.host.user_id  # Then host is the winner
-        self.end_battle(winner_id=winner_id)
+            winner = host  # Then host is the winner
+            loser = guest
+        self.end_battle(winner=winner, loser=loser)
 
 
 # ================================ Profile callback functions
@@ -233,11 +245,11 @@ def abort_battle(bot, update, args):  # TODO: Should add 1 loss if aborts when a
     user_id = update.message.from_user.id 
     if not has_profile(user_id=user_id):
         create_profile(user_id=user_id)
-    profile = get_profile(user_id=user_id)
+    profile: Profile = get_profile(user_id=user_id)
     if is_in_battle(user_id=user_id) and args == profile.in_battle:  # In active battle and sent "confirmation code"
-        battle = get_battle(host_id=profile.in_battle)
-        battle.end_battle(winner_id=profile.battle_against)
-        bot.sendMessage(chat_id=update.message.chat_id, text='{} surrendered!'.format(profile.username))
+        battle: Battle = get_battle(host_id=profile.in_battle)
+        bot.sendMessage(chat_id=update.message.chat_id, text='{} surrenders!'.format(profile.username))
+        battle.surrender(user_id=user_id)
     elif is_in_battle(user_id=user_id) and args != profile.in_battle:  # In active battle but sent wrong code
         bot.sendMessage(chat_id=update.message.chat_id, text='You mistyped the code after "/abort "!')
     elif is_in_battle(user_id) and not args:  # If in active battle and no arguments, sends "confirmation code"
